@@ -29,23 +29,23 @@
     <div class="card">
       <div class="row" style="justify-content: space-between">
         <div>
-          <div class="muted">Gateway public URL</div>
-          <div><code id="gw"></code></div>
+          <div class="muted">Overseer public URL</div>
+          <div><code id="ov"></code></div>
         </div>
         <button id="refresh">Refresh</button>
       </div>
-      <p class="muted">Uses <code>/api/core/public-status</code> (no API keys in browser).</p>
+      <p class="muted">Uses <code>/healthz</code> (public).</p>
     </div>
 
     <div class="card">
-      <h2 style="margin:0 0 12px 0">Services</h2>
+      <h2 style="margin:0 0 12px 0">Service</h2>
       <table>
         <thead>
           <tr>
             <th>Service</th>
             <th>Status</th>
             <th>Version</th>
-            <th>Last heartbeat</th>
+            <th>Checked at</th>
           </tr>
         </thead>
         <tbody id="services"></tbody>
@@ -54,8 +54,8 @@
     </div>
 
     <script>
-      const cfg = window.WARROOM_CONFIG || { GATEWAY_PUBLIC_URL: "" };
-      document.getElementById('gw').textContent = cfg.GATEWAY_PUBLIC_URL || "(not set)";
+      const cfg = window.WARROOM_CONFIG || { OVERSEER_PUBLIC_URL: "" };
+      document.getElementById('ov').textContent = cfg.OVERSEER_PUBLIC_URL || "(not set)";
 
       function fmt(ts) {
         if (!ts) return "-";
@@ -70,22 +70,22 @@
         err.textContent = "";
 
         try {
-          const url = new URL('/api/core/public-status', cfg.GATEWAY_PUBLIC_URL).toString();
+          const url = new URL('/healthz', cfg.OVERSEER_PUBLIC_URL).toString();
           const res = await fetch(url, { method: 'GET' });
           const json = await res.json();
-          if (!json.ok) throw new Error(json.error || 'ERR');
 
-          for (const s of (json.services || [])) {
-            const tr = document.createElement('tr');
-            const pill = `<span class="pill ${s.isUp ? 'up' : 'down'}">${s.isUp ? 'UP' : 'DOWN'}</span>`;
-            tr.innerHTML = `
-              <td><code>${s.service}</code></td>
-              <td>${pill}</td>
-              <td>${s.version || '-'}</td>
-              <td>${fmt(s.lastHeartbeatAt)}</td>
-            `;
-            tbody.appendChild(tr);
-          }
+          const isUp = json && json.status === 'ok';
+          const s = { service: 'overseer', isUp, version: json?.version || '-', checkedAt: new Date().toISOString() };
+
+          const tr = document.createElement('tr');
+          const pill = `<span class="pill ${s.isUp ? 'up' : 'down'}">${s.isUp ? 'UP' : 'DOWN'}</span>`;
+          tr.innerHTML = `
+            <td><code>${s.service}</code></td>
+            <td>${pill}</td>
+            <td>${s.version}</td>
+            <td>${fmt(s.checkedAt)}</td>
+          `;
+          tbody.appendChild(tr);
         } catch (e) {
           err.textContent = `Failed to load status: ${e?.message || e}`;
         }
