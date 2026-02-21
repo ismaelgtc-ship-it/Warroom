@@ -1,0 +1,28 @@
+{
+  "name": "warroom",
+  "folders": [
+    {
+      "name": "gateway",
+      "requests": [
+        {
+          "name": "health",
+          "method": "GET",
+          "endpoint": "{{GATEWAY_URL}}/api/core/health"
+        },
+        {
+          "name": "public-status",
+          "method": "GET",
+          "endpoint": "{{GATEWAY_URL}}/api/core/public-status"
+        }
+      ]
+    }
+  ],
+  "envs": [
+    {
+      "name": "render",
+      "variables": [
+        { "key": "GATEWAY_URL", "value": "https://your-gateway.onrender.com" }
+      ]
+    }
+  ]
+}
