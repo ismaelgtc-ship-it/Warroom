@@ -2,42 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Warroom</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #eee;
-      padding: 40px;
-    }
-    h1 {
-      margin-bottom: 20px;
-    }
-    #status {
-      font-weight: bold;
-      font-size: 20px;
-    }
-    button {
-      padding: 10px 20px;
-      margin-top: 20px;
-      cursor: pointer;
-    }
-    pre {
-      background: #222;
-      padding: 15px;
-      margin-top: 20px;
-    }
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e6edf3; padding:24px; }
+    h1 { margin: 0 0 16px 0; font-size: 22px; }
+    .row { display:flex; gap:16px; flex-wrap:wrap; }
+    .card { background:#111824; border:1px solid #1f2a3a; border-radius:14px; padding:14px; min-width: 320px; flex: 1; }
+    .muted { color:#9fb0c2; font-size: 12px; }
+    .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:#1a2433; border:1px solid #243248; font-weight:600; }
+    .pill.up { border-color:#1b5e3a; background:#0f2a1c; }
+    .pill.down { border-color:#6a1b1b; background:#2a0f0f; }
+    button { background:#1f6feb; color:white; border:0; padding:9px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.secondary { background:#263246; }
+    button.danger { background:#c22; }
+    input[type="text"], textarea { width:100%; background:#0b1220; border:1px solid #243248; color:#e6edf3; border-radius:10px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    textarea { min-height: 140px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { text-align:left; padding:8px 6px; border-bottom:1px solid #1f2a3a; vertical-align: top; }
+    th { color:#9fb0c2; font-size:12px; font-weight:700; text-transform: uppercase; letter-spacing: .04em; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+    pre { background:#0b1220; border:1px solid #243248; border-radius:12px; padding:12px; overflow:auto; }
   </style>
 </head>
 <body>
-  <h1>Warroom Status Dashboard</h1>
-  <div>
-    Overseer status: <span id="status">Checking...</span>
+  <h1>Warroom — Control Plane</h1>
+
+  <div class="row">
+    <div class="card">
+      <div class="muted">Gateway</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div>
+          <div>Status: <span id="gwStatus" class="pill">…</span></div>
+          <div class="muted" id="gwMeta"></div>
+        </div>
+        <div class="actions">
+          <button id="refresh">Refresh</button>
+        </div>
+      </div>
+      <pre id="statusJson"></pre>
+    </div>
+
+    <div class="card">
+      <div class="muted">Modules</div>
+      <div class="muted">Activar/desactivar y lock/unlock desde Gateway.</div>
+      <div style="margin-top:10px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Owner</th>
+              <th>Active</th>
+              <th>Locked</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="modulesTbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <button id="refresh">Refresh</button>
-
-  <pre id="details"></pre>
+  <div class="row" style="margin-top:16px;">
+    <div class="card">
+      <div class="muted">Mirror Config (Wizard-lite)</div>
+      <div class="muted">Config JSON en Gateway: /api/modules/mirror/config</div>
+      <div class="grid2" style="margin-top:10px;">
+        <div>
+          <div class="muted">Current config</div>
+          <textarea id="mirrorJson" spellcheck="false"></textarea>
+          <div class="actions" style="margin-top:10px;">
+            <button class="secondary" id="loadMirror">Load</button>
+            <button id="saveMirror">Save</button>
+          </div>
+          <div class="muted" id="mirrorHint" style="margin-top:8px;"></div>
+        </div>
+        <div>
+          <div class="muted">Schema</div>
+          <pre id="mirrorSchema"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="config.js"></script>
   <script src="app.js"></script>
