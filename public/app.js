@@ -19,7 +19,45 @@
     localStorage.setItem(LS_KEY, JSON.stringify(cfg));
   }
 
-  function setPill(el, up){
+  
+  function canUseStorage(){
+    try{
+      const k="__warroom_test__";
+      localStorage.setItem(k,"1");
+      localStorage.removeItem(k);
+      return true;
+    }catch{
+      return false;
+    }
+  }
+
+  function mask(v){
+    if(!v) return "";
+    const s=String(v);
+    if(s.length<=6) return "***";
+    return s.slice(0,2) + "***" + s.slice(-2);
+  }
+
+  function updateDebug(extra){
+    const box = document.getElementById("debugBox");
+    if(!box) return;
+    const cfg = readConfig();
+    const payload = {
+      storage: canUseStorage(),
+      origin: location.origin,
+      cfg: {
+        BACKEND_URL: cfg.BACKEND_URL || "",
+        BACKEND_API_KEY: mask(cfg.BACKEND_API_KEY || ""),
+        RELAY_URL: cfg.RELAY_URL || "",
+        RELAY_API_KEY: mask(cfg.RELAY_API_KEY || ""),
+        GUILD_ID: cfg.GUILD_ID || ""
+      },
+      extra: extra || null
+    };
+    box.textContent = JSON.stringify(payload, null, 2);
+  }
+
+function setPill(el, up){
     el.classList.remove("up","down");
     el.classList.add(up ? "up":"down");
     el.textContent = up ? "UP":"DOWN";
@@ -41,6 +79,7 @@
     if(!cfg.BACKEND_URL){
       setPill(statusEl, false);
       hintEl.textContent = "Config error: set WARROOM_CONFIG.BACKEND_URL";
+      updateDebug({ missing: "BACKEND_URL" });
       return;
     }
     const url = cfg.BACKEND_URL.replace(/\/+$/,"") + "/api/core/status";
@@ -51,9 +90,12 @@
       const r = await fetchJson(url, { headers });
       setPill(statusEl, r.ok);
       hintEl.textContent = r.ok ? "OK" : `HTTP ${r.status}`;
+      updateDebug({ relay: { ok: r.ok, status: r.status } });
+      updateDebug({ gateway: { ok: r.ok, status: r.status } });
     }catch(e){
       setPill(statusEl, false);
       hintEl.textContent = "Network error";
+      updateDebug({ gateway: "network_error" });
     }
   }
 
@@ -65,6 +107,7 @@
     if(!cfg.RELAY_URL){
       setPill(statusEl, false);
       hintEl.textContent = "Config error: set WARROOM_CONFIG.RELAY_URL";
+      updateDebug({ missing: "RELAY_URL" });
       return;
     }
     const url = cfg.RELAY_URL.replace(/\/+$/,"") + "/health";
@@ -75,9 +118,11 @@
       const r = await fetchJson(url, { headers });
       setPill(statusEl, r.ok);
       hintEl.textContent = r.ok ? "OK" : `HTTP ${r.status}`;
+      updateDebug({ gateway: { ok: r.ok, status: r.status } });
     }catch(e){
       setPill(statusEl, false);
       hintEl.textContent = "Network error";
+      updateDebug({ gateway: "network_error" });
     }
   }
 
@@ -170,10 +215,31 @@
     $("refreshRelay")?.addEventListener("click", refreshRelay);
     $("runCmd")?.addEventListener("click", runCommand);
 
+
+    $("copyDebug")?.addEventListener("click", async () => {
+      const t = $("debugBox")?.textContent || "";
+      try{ await navigator.clipboard.writeText(t); }catch{}
+    });
+
+    $("resetConfig")?.addEventListener("click", () => {
+      try{ localStorage.removeItem(LS_KEY); }catch{}
+      updateDebug({ reset: true });
+      openSettings();
+      refreshGateway();
+      refreshRelay();
+    });
     // Initial refresh
+    updateDebug({ init: true });
+
+    const cfg0 = readConfig();
+    if(!cfg0.BACKEND_URL || !cfg0.RELAY_URL){
+      // If missing config, prompt immediately
+      try{ openSettings(); }catch{}
+    }
+
     refreshGateway();
     refreshRelay();
-  }
+}
 
   document.addEventListener("DOMContentLoaded", bind);
 })();
