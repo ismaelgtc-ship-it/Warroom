@@ -1,182 +1,130 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Warroom</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Warroom — Control Plane</title>
   <style>
-    :root { color-scheme: dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e6edf3; padding:24px; }
-    h1 { margin: 0 0 16px 0; font-size: 22px; }
-    .row { display:flex; gap:16px; flex-wrap:wrap; }
-    .card { background:#111824; border:1px solid #1f2a3a; border-radius:14px; padding:14px; min-width: 320px; flex: 1; }
-    .muted { color:#9fb0c2; font-size: 12px; }
-    .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:#1a2433; border:1px solid #243248; font-weight:600; }
-    .pill.up { border-color:#1b5e3a; background:#0f2a1c; }
-    .pill.down { border-color:#6a1b1b; background:#2a0f0f; }
-    button { background:#1f6feb; color:white; border:0; padding:9px 12px; border-radius:10px; cursor:pointer; font-weight:600; }
-    button.secondary { background:#263246; }
-    button.danger { background:#c22; }
-    input[type="text"], textarea { width:100%; background:#0b1220; border:1px solid #243248; color:#e6edf3; border-radius:10px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    textarea { min-height: 140px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { text-align:left; padding:8px 6px; border-bottom:1px solid #1f2a3a; vertical-align: top; }
-    th { color:#9fb0c2; font-size:12px; font-weight:700; text-transform: uppercase; letter-spacing: .04em; }
-    .actions { display:flex; gap:8px; flex-wrap:wrap; }
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
-    pre { background:#0b1220; border:1px solid #243248; border-radius:12px; padding:12px; overflow:auto; }
-  
-.headerbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
-.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:9999; }
-.modal { width:min(720px, 100%); background:#0f1622; border:1px solid #243045; border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
-.modal header { padding:14px 16px; border-bottom:1px solid #243045; display:flex; align-items:center; justify-content:space-between; }
-.modal header h2 { margin:0; font-size:16px; }
-.modal .content { padding:16px; display:grid; grid-template-columns:1fr; gap:10px; }
-.modal label { font-size:12px; color:#9fb1c3; }
-.modal input { width:100%; padding:10px; border-radius:10px; border:1px solid #243045; background:#0b111b; color:#e6edf3; }
-.modal .actions { padding:12px 16px; border-top:1px solid #243045; display:flex; gap:10px; justify-content:flex-end; }
-.hint { color:#9fb1c3; font-size:12px; margin-top:2px; }
-
+    :root {
+      --bg:#0b1220; --card:#0f1b2e; --border:rgba(255,255,255,.08); --text:#e5e7eb;
+      --muted:#94a3b8; --blue:#3b82f6; --red:#ef4444;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text);}
+    .wrap{max-width:980px;margin:28px auto;padding:0 16px;}
+    h1{font-size:28px;margin:0 0 18px;}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+    .btn{appearance:none;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);
+      padding:10px 14px;border-radius:12px;font-weight:600;cursor:pointer}
+    .btn.primary{background:var(--blue);border-color:transparent;}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid var(--border);
+      border-radius:16px;padding:16px;margin:14px 0;}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .status-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:800;letter-spacing:.5px}
+    .down{background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.35);color:#fecaca}
+    .up{background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35);color:#bbf7d0}
+    .muted{color:var(--muted);font-size:13px}
+    input, textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);border:1px solid var(--border);color:var(--text);
+      border-radius:12px;padding:10px 12px;outline:none}
+    textarea{min-height:110px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:860px){.grid{grid-template-columns:1fr 1fr}}
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+    .modal{width:min(720px,100%);background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px}
+    .modal h2{margin:0 0 10px;font-size:18px}
+    .modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
+    .hidden{display:none}
   </style>
 </head>
 <body>
-  <div class="headerbar"><h1>Warroom — Control Plane</h1><button id="btnSettings" class="btn btn-secondary">Settings</button></div>
-
-  <div class="row">
-    <div class="card">
-      <div class="muted">Gateway</div>
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <div>Status: <span id="gwStatus" class="pill">…</span></div>
-          <div class="muted" id="gwMeta"></div>
-        </div>
-        <div class="actions">
-          <button id="refresh">Refresh</button>
-        </div>
-      </div>
-      <pre id="statusJson"></pre>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>Warroom — Control Plane</h1>
+      <button id="settingsBtn" class="btn primary" type="button">Settings</button>
     </div>
 
     <div class="card">
-      <div class="muted">Modules</div>
-      <div class="muted">Activar/desactivar y lock/unlock desde Gateway.</div>
-      <div style="margin-top:10px; overflow:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>Module</th>
-              <th>Owner</th>
-              <th>Active</th>
-              <th>Locked</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="modulesTbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="row" style="margin-top:16px;">
-    <div class="card">
-      <div class="muted">Mirror Config (Wizard-lite)</div>
-      <div class="muted">Config JSON en Gateway: /api/modules/mirror/config</div>
-      <div class="grid2" style="margin-top:10px;">
+      <div class="row">
         <div>
-          <div class="muted">Current config</div>
-          <textarea id="mirrorJson" spellcheck="false"></textarea>
-          <div class="actions" style="margin-top:10px;">
-            <button class="secondary" id="loadMirror">Load</button>
-            <button id="saveMirror">Save</button>
+          <div class="muted">Gateway</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div>Status: <span id="gatewayStatus" class="status-pill down">DOWN</span></div>
           </div>
-          <div class="muted" id="mirrorHint" style="margin-top:8px;"></div>
+          <div id="gatewayHint" class="muted" style="margin-top:6px">Config error: set WARROOM_CONFIG.BACKEND_URL</div>
         </div>
-        <div>
-          <div class="muted">Schema</div>
-          <pre id="mirrorSchema"></pre>
-        </div>
+        <button id="refreshGateway" class="btn" type="button">Refresh</button>
       </div>
     </div>
-  </div>
 
-  <div class="row" style="margin-top:16px;">
     <div class="card">
-      <div class="muted">Command Console</div>
-      <div class="muted">Ejecuta comandos del bot desde el Dashboard (via Relay).</div>
-
-      <div style="margin-top:10px;" class="grid2">
+      <div class="row">
         <div>
-          <label class="muted" for="cmdName">Command</label>
-          <input id="cmdName" type="text" placeholder="e.g. create_group" />
-          <div class="muted" style="margin-top:8px;">Options (JSON object)</div>
-          <textarea id="cmdOptions" spellcheck="false" placeholder='{"name":"my-group"}'></textarea>
-          <div class="actions" style="margin-top:10px;">
-            <button id="cmdRun">Run</button>
-            <button class="secondary" id="cmdPresetMirror">Load Mirror Presets</button>
-          </div>
-          <div class="muted" id="cmdHint" style="margin-top:8px;"></div>
+          <div class="muted">Relay</div>
+          <div>Status: <span id="relayStatus" class="status-pill down">DOWN</span></div>
+          <div id="relayHint" class="muted" style="margin-top:6px">Config error: set WARROOM_CONFIG.RELAY_URL</div>
+        </div>
+        <button id="refreshRelay" class="btn" type="button">Refresh</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:8px">Command Console</div>
+      <div class="grid">
+        <div>
+          <label class="muted">Command</label>
+          <input id="cmdName" placeholder="create_group"/>
         </div>
         <div>
-          <div class="muted">Result</div>
-          <pre id="cmdResult"></pre>
+          <label class="muted">Options (JSON)</label>
+          <textarea id="cmdOpts">{ "name": "hmb" }</textarea>
         </div>
       </div>
-
-      <div class="muted" style="margin-top:12px;">Mirror quick presets:</div>
-      <div class="actions" style="margin-top:8px;">
-        <button class="secondary" data-preset="create_group">create_group</button>
-        <button class="secondary" data-preset="delete_group">delete_group</button>
-        <button class="secondary" data-preset="add_channel">add_channel</button>
-        <button class="secondary" data-preset="remove_channel">remove_channel</button>
-        <button class="secondary" data-preset="mirror_list">mirror_list</button>
-        <button class="secondary" data-preset="mirror_clear">mirror_clear</button>
+      <div class="row" style="margin-top:10px">
+        <button id="runCmd" class="btn primary" type="button">Run</button>
+        <div id="cmdError" class="muted"></div>
+      </div>
+      <div style="margin-top:10px">
+        <label class="muted">Result</label>
+        <textarea id="cmdResult" readonly></textarea>
       </div>
     </div>
   </div>
 
-  <script src="config.js"></script>
-  <script src="app.js"></script>
-
-<div id="settingsBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal">
-    <header>
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
       <h2>Settings</h2>
-      <button id="btnSettingsCloseTop" class="btn btn-secondary">Close</button>
-    </header>
-    <div class="content">
-      <div>
-        <label for="cfgBackendUrl">Gateway URL (BACKEND_URL)</label>
-        <input id="cfgBackendUrl" placeholder="https://gateway-xxxxx.onrender.com" />
-        <div class="hint">Public URL of your Gateway service (Render).</div>
+      <div class="muted">Stored locally in this browser (localStorage).</div>
+      <div class="grid" style="margin-top:12px">
+        <div>
+          <label class="muted">Gateway URL (BACKEND_URL)</label>
+          <input id="setBackendUrl" placeholder="https://gateway-xxxxx.onrender.com"/>
+        </div>
+        <div>
+          <label class="muted">Gateway API Key (BACKEND_API_KEY)</label>
+          <input id="setBackendKey" placeholder="INTERNAL_API_KEY"/>
+        </div>
+        <div>
+          <label class="muted">Relay URL (RELAY_URL)</label>
+          <input id="setRelayUrl" placeholder="https://relay-xxxxx.onrender.com"/>
+        </div>
+        <div>
+          <label class="muted">Relay API Key (RELAY_API_KEY)</label>
+          <input id="setRelayKey" placeholder="DASHBOARD_API_KEY"/>
+        </div>
+        <div>
+          <label class="muted">Guild ID (optional)</label>
+          <input id="setGuildId" placeholder="123456789012345678"/>
+        </div>
       </div>
-      <div>
-        <label for="cfgBackendKey">Gateway API Key (BACKEND_API_KEY)</label>
-        <input id="cfgBackendKey" placeholder="INTERNAL_API_KEY or Gateway dashboard key" />
-        <div class="hint">Must match the key Gateway expects for dashboard actions.</div>
+      <div class="actions">
+        <button id="cancelSettings" class="btn" type="button">Cancel</button>
+        <button id="saveSettings" class="btn primary" type="button">Save</button>
       </div>
-      <div>
-        <label for="cfgRelayUrl">Relay URL (RELAY_URL)</label>
-        <input id="cfgRelayUrl" placeholder="https://relay-xxxxx.onrender.com" />
-        <div class="hint">Public URL of your Relay service (Render).</div>
-      </div>
-      <div>
-        <label for="cfgRelayKey">Relay API Key (RELAY_API_KEY)</label>
-        <input id="cfgRelayKey" placeholder="DASHBOARD_API_KEY (Relay)" />
-        <div class="hint">Must match DASHBOARD_API_KEY configured on Relay.</div>
-      </div>
-      <div>
-        <label for="cfgGuildId">Guild ID (optional)</label>
-        <input id="cfgGuildId" placeholder="123456789012345678" />
-        <div class="hint">Optional; if empty, Relay will use its primary guild context.</div>
-      </div>
-    </div>
-    <div class="actions">
-      <button id="btnSettingsClear" class="btn btn-secondary">Clear</button>
-      <button id="btnSettingsSave" class="btn">Save</button>
     </div>
   </div>
-</div>
 
+  <script src="./config.js?v=1771869982"></script>
+  <script src="./app.js?v=1771869982"></script>
 </body>
 </html>

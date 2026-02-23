@@ -1,17 +1,8 @@
-// Warroom runtime config (optional)
-// You can leave these empty and configure from the UI (Settings). Values are stored in localStorage.
-//
-// BACKEND_URL: Gateway public URL (Render)
-// BACKEND_API_KEY: must match DASHBOARD_API_KEY on Gateway
-// RELAY_URL: Relay public URL (Render)
-// RELAY_API_KEY: must match DASHBOARD_API_KEY on Relay (dashboard key)
-//
-// Note: UI Settings override these defaults.
-
-window.WARROOM_CONFIG = {
-  BACKEND_URL: "",
-  BACKEND_API_KEY: "",
-  RELAY_URL: "",
-  RELAY_API_KEY: "",
-  OVERSEER_PUBLIC_URL: ""
+// Default config (optional). UI Settings overrides this via localStorage.
+window.WARROOM_CONFIG = window.WARROOM_CONFIG || {
+  // BACKEND_URL: "https://gateway-xxxxx.onrender.com",
+  // BACKEND_API_KEY: "INTERNAL_API_KEY",
+  // RELAY_URL: "https://relay-xxxxx.onrender.com",
+  // RELAY_API_KEY: "DASHBOARD_API_KEY",
+  // GUILD_ID: "123456789012345678"
 };
