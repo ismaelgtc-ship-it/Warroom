@@ -26,15 +26,6 @@
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
     pre { background:#0b1220; border:1px solid #243248; border-radius:12px; padding:12px; overflow:auto; }
-    .split3 { display:grid; grid-template-columns: 1.1fr 0.9fr 1fr; gap:12px; }
-    @media (max-width: 1100px) { .split3 { grid-template-columns: 1fr; } }
-    .list { background:#0b1220; border:1px solid #243248; border-radius:12px; overflow:auto; max-height: 420px; }
-    .list .item { padding:10px 12px; border-bottom:1px solid #1f2a3a; cursor:pointer; }
-    .list .item:last-child { border-bottom:0; }
-    .list .item:hover { background:#0d1730; }
-    .list .item.active { background:#0f2348; }
-    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #243248; background:#111824; color:#cfe0f1; }
-    .indent { margin-left: 14px; }
   </style>
 </head>
 <body>
@@ -53,20 +44,6 @@
         </div>
       </div>
       <pre id="statusJson"></pre>
-    </div>
-
-    <div class="card">
-      <div class="muted">Relay</div>
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div>
-          <div>Status: <span id="relayStatus" class="pill">…</span></div>
-          <div class="muted" id="relayMeta"></div>
-        </div>
-        <div class="actions">
-          <button class="secondary" id="refreshRelay">Refresh</button>
-        </div>
-      </div>
-      <pre id="relayJson"></pre>
     </div>
 
     <div class="card">
@@ -91,56 +68,6 @@
 
   <div class="row" style="margin-top:16px;">
     <div class="card">
-      <div class="muted">Discord — Live Clone</div>
-      <div class="muted">Estructura y estado actual desde Relay (no se guarda en Mongo).</div>
-      <div class="actions" style="margin-top:10px;">
-        <button class="secondary" id="loadGuild">Load</button>
-        <button class="secondary" id="downloadBackup">Download Backup</button>
-        <button class="secondary" id="takeSnapshot">Take Snapshot</button>
-      </div>
-      <div class="muted" id="guildHint" style="margin-top:8px;"></div>
-
-      <div class="split3" style="margin-top:12px;">
-        <div>
-          <div class="muted">Channels</div>
-          <div id="channelsList" class="list"></div>
-        </div>
-
-        <div>
-          <div class="muted">Roles</div>
-          <div id="rolesList" class="list"></div>
-        </div>
-
-        <div>
-          <div class="muted">Members</div>
-          <input id="memberSearch" type="text" placeholder="Search member (tag/nick/id)" />
-          <div id="membersList" class="list" style="margin-top:10px;"></div>
-        </div>
-      </div>
-
-      <div class="grid2" style="margin-top:12px;">
-        <div>
-          <div class="muted">Selected Channel</div>
-          <pre id="channelJson"></pre>
-          <div class="actions" style="margin-top:10px;">
-            <button class="secondary" id="renameChannelBtn">Rename</button>
-          </div>
-          <div class="muted" id="channelHint" style="margin-top:8px;"></div>
-        </div>
-        <div>
-          <div class="muted">Selected Member</div>
-          <pre id="memberJson"></pre>
-          <div class="actions" style="margin-top:10px;">
-            <button class="danger" id="removeRoleBtn">Remove Role</button>
-          </div>
-          <div class="muted" id="memberHint" style="margin-top:8px;"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row" style="margin-top:16px;">
-    <div class="card">
       <div class="muted">Mirror Config (Wizard-lite)</div>
       <div class="muted">Config JSON en Gateway: /api/modules/mirror/config</div>
       <div class="grid2" style="margin-top:10px;">
@@ -157,6 +84,41 @@
           <div class="muted">Schema</div>
           <pre id="mirrorSchema"></pre>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:16px;">
+    <div class="card">
+      <div class="muted">Command Console</div>
+      <div class="muted">Ejecuta comandos del bot desde el Dashboard (via Relay).</div>
+
+      <div style="margin-top:10px;" class="grid2">
+        <div>
+          <label class="muted" for="cmdName">Command</label>
+          <input id="cmdName" type="text" placeholder="e.g. create_group" />
+          <div class="muted" style="margin-top:8px;">Options (JSON object)</div>
+          <textarea id="cmdOptions" spellcheck="false" placeholder='{"name":"my-group"}'></textarea>
+          <div class="actions" style="margin-top:10px;">
+            <button id="cmdRun">Run</button>
+            <button class="secondary" id="cmdPresetMirror">Load Mirror Presets</button>
+          </div>
+          <div class="muted" id="cmdHint" style="margin-top:8px;"></div>
+        </div>
+        <div>
+          <div class="muted">Result</div>
+          <pre id="cmdResult"></pre>
+        </div>
+      </div>
+
+      <div class="muted" style="margin-top:12px;">Mirror quick presets:</div>
+      <div class="actions" style="margin-top:8px;">
+        <button class="secondary" data-preset="create_group">create_group</button>
+        <button class="secondary" data-preset="delete_group">delete_group</button>
+        <button class="secondary" data-preset="add_channel">add_channel</button>
+        <button class="secondary" data-preset="remove_channel">remove_channel</button>
+        <button class="secondary" data-preset="mirror_list">mirror_list</button>
+        <button class="secondary" data-preset="mirror_clear">mirror_clear</button>
       </div>
     </div>
   </div>
