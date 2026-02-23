@@ -1,245 +1,228 @@
-(() => {
+(function () {
   const LS_KEY = "WARROOM_CONFIG";
 
-  function $(id){ return document.getElementById(id); }
+  function byId(id){ return document.getElementById(id); }
+  function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
 
-  function readConfig(){
-    // Priority: localStorage > window.WARROOM_CONFIG (from config.js)
-    try{
-      const raw = localStorage.getItem(LS_KEY);
-      if(raw){
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === "object" ? parsed : (window.WARROOM_CONFIG || {});
-      }
-    }catch{}
-    return window.WARROOM_CONFIG || {};
+  // ✅ FIX: auto-add https:// if missing
+  function normalizeUrl(u){
+    u = (u || "").trim();
+    if (!u) return "";
+    u = u.replace(/\/+$/g, "");
+
+    // If user pasted without scheme, assume https
+    if (!/^https?:\/\//i.test(u)) {
+      u = "https://" + u;
+    }
+
+    // Final sanity check
+    if (!/^https?:\/\//i.test(u)) return "";
+    return u;
   }
 
-  function writeConfig(cfg){
+  function loadConfig(){
+    const base = (window.WARROOM_CONFIG && typeof window.WARROOM_CONFIG === "object") ? window.WARROOM_CONFIG : {};
+    const raw = localStorage.getItem(LS_KEY);
+    const ls = raw ? safeJsonParse(raw) : null;
+    const cfg = Object.assign(
+      { BACKEND_URL:"", BACKEND_API_KEY:"", RELAY_URL:"", RELAY_API_KEY:"", GUILD_ID:"" },
+      base,
+      (ls && typeof ls === "object") ? ls : {}
+    );
+
+    cfg.BACKEND_URL = normalizeUrl(cfg.BACKEND_URL);
+    cfg.RELAY_URL = normalizeUrl(cfg.RELAY_URL);
+    cfg.BACKEND_API_KEY = (cfg.BACKEND_API_KEY || "").trim();
+    cfg.RELAY_API_KEY = (cfg.RELAY_API_KEY || "").trim();
+    cfg.GUILD_ID = (cfg.GUILD_ID || "").trim();
+    return cfg;
+  }
+
+  function saveConfig(cfg){
     localStorage.setItem(LS_KEY, JSON.stringify(cfg));
   }
 
-  
-  function canUseStorage(){
+  function setStatus(kind, up, hint){
+    const el = byId(kind+"Status");
+    const hintEl = byId(kind+"Hint");
+    el.textContent = up ? "UP" : "DOWN";
+    el.classList.toggle("up", !!up);
+    el.classList.toggle("down", !up);
+    hintEl.textContent = hint || "";
+  }
+
+  async function pingGateway(cfg){
+    if (!cfg.BACKEND_URL) return setStatus("gateway", false, "Config error: set WARROOM_CONFIG.BACKEND_URL");
     try{
-      const k="__warroom_test__";
-      localStorage.setItem(k,"1");
-      localStorage.removeItem(k);
-      return true;
-    }catch{
-      return false;
-    }
-  }
-
-  function mask(v){
-    if(!v) return "";
-    const s=String(v);
-    if(s.length<=6) return "***";
-    return s.slice(0,2) + "***" + s.slice(-2);
-  }
-
-  function updateDebug(extra){
-    const box = document.getElementById("debugBox");
-    if(!box) return;
-    const cfg = readConfig();
-    const payload = {
-      storage: canUseStorage(),
-      origin: location.origin,
-      cfg: {
-        BACKEND_URL: cfg.BACKEND_URL || "",
-        BACKEND_API_KEY: mask(cfg.BACKEND_API_KEY || ""),
-        RELAY_URL: cfg.RELAY_URL || "",
-        RELAY_API_KEY: mask(cfg.RELAY_API_KEY || ""),
-        GUILD_ID: cfg.GUILD_ID || ""
-      },
-      extra: extra || null
-    };
-    box.textContent = JSON.stringify(payload, null, 2);
-  }
-
-function setPill(el, up){
-    el.classList.remove("up","down");
-    el.classList.add(up ? "up":"down");
-    el.textContent = up ? "UP":"DOWN";
-  }
-
-  async function fetchJson(url, opts){
-    const res = await fetch(url, opts);
-    const text = await res.text();
-    let data = null;
-    try{ data = text ? JSON.parse(text) : null; }catch{ data = { raw:text }; }
-    return { ok: res.ok, status: res.status, data };
-  }
-
-  async function refreshGateway(){
-    const cfg = readConfig();
-    const statusEl = $("gatewayStatus");
-    const hintEl = $("gatewayHint");
-
-    if(!cfg.BACKEND_URL){
-      setPill(statusEl, false);
-      hintEl.textContent = "Config error: set WARROOM_CONFIG.BACKEND_URL";
-      updateDebug({ missing: "BACKEND_URL" });
-      return;
-    }
-    const url = cfg.BACKEND_URL.replace(/\/+$/,"") + "/api/core/status";
-    const headers = {};
-    if(cfg.BACKEND_API_KEY) headers["X-API-Key"] = cfg.BACKEND_API_KEY;
-
-    try{
-      const r = await fetchJson(url, { headers });
-      setPill(statusEl, r.ok);
-      hintEl.textContent = r.ok ? "OK" : `HTTP ${r.status}`;
-      updateDebug({ relay: { ok: r.ok, status: r.status } });
-      updateDebug({ gateway: { ok: r.ok, status: r.status } });
+      const res = await fetch(cfg.BACKEND_URL + "/api/core/status", {
+        headers: cfg.BACKEND_API_KEY ? { "X-API-Key": cfg.BACKEND_API_KEY } : {}
+      });
+      if (!res.ok) return setStatus("gateway", false, "HTTP " + res.status);
+      setStatus("gateway", true, "OK");
     }catch(e){
-      setPill(statusEl, false);
-      hintEl.textContent = "Network error";
-      updateDebug({ gateway: "network_error" });
+      setStatus("gateway", false, String(e && e.message ? e.message : e));
     }
   }
 
-  async function refreshRelay(){
-    const cfg = readConfig();
-    const statusEl = $("relayStatus");
-    const hintEl = $("relayHint");
-
-    if(!cfg.RELAY_URL){
-      setPill(statusEl, false);
-      hintEl.textContent = "Config error: set WARROOM_CONFIG.RELAY_URL";
-      updateDebug({ missing: "RELAY_URL" });
-      return;
-    }
-    const url = cfg.RELAY_URL.replace(/\/+$/,"") + "/health";
-    const headers = {};
-    if(cfg.RELAY_API_KEY) headers["X-API-Key"] = cfg.RELAY_API_KEY;
-
+  async function pingRelay(cfg){
+    if (!cfg.RELAY_URL) return setStatus("relay", false, "Config error: set WARROOM_CONFIG.RELAY_URL");
     try{
-      const r = await fetchJson(url, { headers });
-      setPill(statusEl, r.ok);
-      hintEl.textContent = r.ok ? "OK" : `HTTP ${r.status}`;
-      updateDebug({ gateway: { ok: r.ok, status: r.status } });
+      const res = await fetch(cfg.RELAY_URL + "/health", {
+        headers: cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {}
+      });
+      if (!res.ok) return setStatus("relay", false, "HTTP " + res.status);
+      setStatus("relay", true, "OK");
     }catch(e){
-      setPill(statusEl, false);
-      hintEl.textContent = "Network error";
-      updateDebug({ gateway: "network_error" });
+      setStatus("relay", false, String(e && e.message ? e.message : e));
     }
   }
 
-  function openSettings(){
-    const cfg = readConfig();
-    $("setBackendUrl").value = cfg.BACKEND_URL || "";
-    $("setBackendKey").value = cfg.BACKEND_API_KEY || "";
-    $("setRelayUrl").value   = cfg.RELAY_URL || "";
-    $("setRelayKey").value   = cfg.RELAY_API_KEY || "";
-    $("setGuildId").value    = cfg.GUILD_ID || "";
+  function openSettings(cfg){
+    const bd = byId("settingsBackdrop");
+    byId("inpBackendUrl").value = cfg.BACKEND_URL || "";
+    byId("inpBackendKey").value = cfg.BACKEND_API_KEY || "";
+    byId("inpRelayUrl").value = cfg.RELAY_URL || "";
+    byId("inpRelayKey").value = cfg.RELAY_API_KEY || "";
+    byId("inpGuildId").value = cfg.GUILD_ID || "";
 
-    const modal = $("settingsModal");
-    modal.style.display = "flex";
-    modal.setAttribute("aria-hidden","false");
+    const msg = byId("settingsMsg");
+    msg.style.display="none";
+    msg.textContent="";
+    bd.style.display="flex";
+    bd.setAttribute("aria-hidden","false");
   }
 
   function closeSettings(){
-    const modal = $("settingsModal");
-    modal.style.display = "none";
-    modal.setAttribute("aria-hidden","true");
+    const bd = byId("settingsBackdrop");
+    bd.style.display="none";
+    bd.setAttribute("aria-hidden","true");
   }
 
-  function saveSettings(){
-    const cfg = {
-      BACKEND_URL: $("setBackendUrl").value.trim(),
-      BACKEND_API_KEY: $("setBackendKey").value.trim(),
-      RELAY_URL: $("setRelayUrl").value.trim(),
-      RELAY_API_KEY: $("setRelayKey").value.trim(),
-      GUILD_ID: $("setGuildId").value.trim(),
+  function showSettingsMsg(text, ok){
+    const msg = byId("settingsMsg");
+    msg.style.display="block";
+    msg.className = ok ? "ok" : "err";
+    msg.textContent = text;
+  }
+
+  function refreshDebug(cfg){
+    const debug = {
+      storage: true,
+      origin: window.location.origin,
+      cfg,
+      extra: {
+        missing: (!cfg.BACKEND_URL ? "BACKEND_URL" : (!cfg.RELAY_URL ? "RELAY_URL" : "")) || ""
+      }
     };
-    // normalize empties
-    Object.keys(cfg).forEach(k => { if(!cfg[k]) delete cfg[k]; });
-    writeConfig(cfg);
-    closeSettings();
-    refreshGateway();
-    refreshRelay();
+    byId("debugBox").value = JSON.stringify(debug, null, 2);
+    return debug;
   }
 
-  async function runCommand(){
-    const cfg = readConfig();
-    const errEl = $("cmdError");
-    const outEl = $("cmdResult");
-    errEl.textContent = "";
-    outEl.value = "";
+  async function runCommand(cfg){
+    const out = byId("cmdResult");
+    out.value = "";
+    if (!cfg.RELAY_URL) { out.value = "Config error: set WARROOM_CONFIG.RELAY_URL"; return; }
 
-    if(!cfg.RELAY_URL){
-      errEl.textContent = "Config error: set WARROOM_CONFIG.RELAY_URL";
+    const name = (byId("cmdName").value || "").trim();
+    if (!name) { out.value = "Missing command"; return; }
+
+    const raw = byId("cmdOptions").value || "{}";
+    const parsed = safeJsonParse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      out.value = "Options must be a JSON object";
       return;
     }
-    const cmd = ($("cmdName").value || "").trim();
-    if(!cmd){
-      errEl.textContent = "Command is required.";
-      return;
-    }
-    let opts = {};
+
     try{
-      const raw = $("cmdOpts").value.trim();
-      opts = raw ? JSON.parse(raw) : {};
-    }catch{
-      errEl.textContent = "Options must be valid JSON.";
-      return;
-    }
+      const res = await fetch(cfg.RELAY_URL + "/api/dashboard/commands/execute", {
+        method: "POST",
+        headers: Object.assign(
+          { "Content-Type":"application/json" },
+          cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {}
+        ),
+        body: JSON.stringify({ name, options: parsed, guildId: cfg.GUILD_ID || undefined })
+      });
 
-    const url = cfg.RELAY_URL.replace(/\/+$/,"") + "/api/dashboard/commands/execute";
-    const headers = { "Content-Type":"application/json" };
-    if(cfg.RELAY_API_KEY) headers["X-API-Key"] = cfg.RELAY_API_KEY;
+      const text = await res.text();
+      let payload;
+      try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
 
-    const payload = { name: cmd, options: opts, guildId: cfg.GUILD_ID };
-    try{
-      const r = await fetchJson(url, { method:"POST", headers, body: JSON.stringify(payload) });
-      outEl.value = JSON.stringify({ ok:r.ok, status:r.status, data:r.data }, null, 2);
-      if(!r.ok) errEl.textContent = `Execution failed (HTTP ${r.status}).`;
-    }catch{
-      errEl.textContent = "Network error calling Relay.";
+      out.value = JSON.stringify({ status: res.status, payload }, null, 2);
+    }catch(e){
+      out.value = String(e && e.message ? e.message : e);
     }
   }
 
-  function bind(){
-    // Button binding (fixed)
-    $("settingsBtn")?.addEventListener("click", openSettings);
-    $("cancelSettings")?.addEventListener("click", closeSettings);
-    $("saveSettings")?.addEventListener("click", saveSettings);
+  function applyPreset(preset){
+    byId("cmdName").value = preset;
+    const presets = {
+      create_group: { name: "HMB" },
+      delete_group: { name: "HMB" },
+      add_channel: { group: "HMB", channel: "123456789012345678", lang: "EN" },
+      remove_channel: { group: "HMB", channel: "123456789012345678" },
+      mirror_list: {},
+      mirror_clear: {}
+    };
+    const obj = presets[preset] || {};
+    byId("cmdOptions").value = JSON.stringify(obj, null, 2);
+  }
 
-    // Close modal when clicking backdrop
-    $("settingsModal")?.addEventListener("click", (e) => {
-      if(e.target && e.target.id === "settingsModal") closeSettings();
+  document.addEventListener("DOMContentLoaded", () => {
+    let cfg = loadConfig();
+    refreshDebug(cfg);
+    pingGateway(cfg);
+    pingRelay(cfg);
+
+    byId("btnSettings").addEventListener("click", () => openSettings(cfg));
+    byId("btnCloseSettings").addEventListener("click", closeSettings);
+    byId("settingsBackdrop").addEventListener("click", (e) => {
+      if (e.target === byId("settingsBackdrop")) closeSettings();
     });
 
-    $("refreshGateway")?.addEventListener("click", refreshGateway);
-    $("refreshRelay")?.addEventListener("click", refreshRelay);
-    $("runCmd")?.addEventListener("click", runCommand);
+    byId("btnSaveConfig").addEventListener("click", () => {
+      const next = {
+        BACKEND_URL: normalizeUrl(byId("inpBackendUrl").value),
+        BACKEND_API_KEY: (byId("inpBackendKey").value || "").trim(),
+        RELAY_URL: normalizeUrl(byId("inpRelayUrl").value),
+        RELAY_API_KEY: (byId("inpRelayKey").value || "").trim(),
+        GUILD_ID: (byId("inpGuildId").value || "").trim()
+      };
 
+      if (!next.BACKEND_URL) return showSettingsMsg("Invalid Gateway URL", false);
+      if (!next.RELAY_URL) return showSettingsMsg("Invalid Relay URL", false);
 
-    $("copyDebug")?.addEventListener("click", async () => {
-      const t = $("debugBox")?.textContent || "";
-      try{ await navigator.clipboard.writeText(t); }catch{}
+      saveConfig(next);
+      cfg = loadConfig();
+      refreshDebug(cfg);
+      closeSettings();
+      pingGateway(cfg);
+      pingRelay(cfg);
     });
 
-    $("resetConfig")?.addEventListener("click", () => {
-      try{ localStorage.removeItem(LS_KEY); }catch{}
-      updateDebug({ reset: true });
-      openSettings();
-      refreshGateway();
-      refreshRelay();
+    byId("btnClearConfig").addEventListener("click", () => {
+      localStorage.removeItem(LS_KEY);
+      cfg = loadConfig();
+      refreshDebug(cfg);
+      showSettingsMsg("Cleared. Fill URLs and Save.", true);
     });
-    // Initial refresh
-    updateDebug({ init: true });
 
-    const cfg0 = readConfig();
-    if(!cfg0.BACKEND_URL || !cfg0.RELAY_URL){
-      // If missing config, prompt immediately
-      try{ openSettings(); }catch{}
+    byId("btnRefreshGateway").addEventListener("click", () => { cfg = loadConfig(); refreshDebug(cfg); pingGateway(cfg); });
+    byId("btnRefreshRelay").addEventListener("click", () => { cfg = loadConfig(); refreshDebug(cfg); pingRelay(cfg); });
+
+    byId("btnRun").addEventListener("click", () => { cfg = loadConfig(); refreshDebug(cfg); runCommand(cfg); });
+
+    document.querySelectorAll("[data-preset]").forEach(btn => {
+      btn.addEventListener("click", () => applyPreset(btn.getAttribute("data-preset")));
+    });
+
+    byId("btnCopyDebug").addEventListener("click", async () => {
+      const dbg = refreshDebug(loadConfig());
+      const txt = JSON.stringify(dbg, null, 2);
+      try { await navigator.clipboard.writeText(txt); } catch {}
+    });
+
+    if (!cfg.BACKEND_URL || !cfg.RELAY_URL){
+      openSettings(cfg);
     }
-
-    refreshGateway();
-    refreshRelay();
-}
-
-  document.addEventListener("DOMContentLoaded", bind);
+  });
 })();
