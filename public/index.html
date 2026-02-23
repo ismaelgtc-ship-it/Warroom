@@ -26,10 +26,22 @@
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
     pre { background:#0b1220; border:1px solid #243248; border-radius:12px; padding:12px; overflow:auto; }
+  
+.headerbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:9999; }
+.modal { width:min(720px, 100%); background:#0f1622; border:1px solid #243045; border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.modal header { padding:14px 16px; border-bottom:1px solid #243045; display:flex; align-items:center; justify-content:space-between; }
+.modal header h2 { margin:0; font-size:16px; }
+.modal .content { padding:16px; display:grid; grid-template-columns:1fr; gap:10px; }
+.modal label { font-size:12px; color:#9fb1c3; }
+.modal input { width:100%; padding:10px; border-radius:10px; border:1px solid #243045; background:#0b111b; color:#e6edf3; }
+.modal .actions { padding:12px 16px; border-top:1px solid #243045; display:flex; gap:10px; justify-content:flex-end; }
+.hint { color:#9fb1c3; font-size:12px; margin-top:2px; }
+
   </style>
 </head>
 <body>
-  <h1>Warroom — Control Plane</h1>
+  <div class="headerbar"><h1>Warroom — Control Plane</h1><button id="btnSettings" class="btn btn-secondary">Settings</button></div>
 
   <div class="row">
     <div class="card">
@@ -125,5 +137,46 @@
 
   <script src="config.js"></script>
   <script src="app.js"></script>
+
+<div id="settingsBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <header>
+      <h2>Settings</h2>
+      <button id="btnSettingsCloseTop" class="btn btn-secondary">Close</button>
+    </header>
+    <div class="content">
+      <div>
+        <label for="cfgBackendUrl">Gateway URL (BACKEND_URL)</label>
+        <input id="cfgBackendUrl" placeholder="https://gateway-xxxxx.onrender.com" />
+        <div class="hint">Public URL of your Gateway service (Render).</div>
+      </div>
+      <div>
+        <label for="cfgBackendKey">Gateway API Key (BACKEND_API_KEY)</label>
+        <input id="cfgBackendKey" placeholder="INTERNAL_API_KEY or Gateway dashboard key" />
+        <div class="hint">Must match the key Gateway expects for dashboard actions.</div>
+      </div>
+      <div>
+        <label for="cfgRelayUrl">Relay URL (RELAY_URL)</label>
+        <input id="cfgRelayUrl" placeholder="https://relay-xxxxx.onrender.com" />
+        <div class="hint">Public URL of your Relay service (Render).</div>
+      </div>
+      <div>
+        <label for="cfgRelayKey">Relay API Key (RELAY_API_KEY)</label>
+        <input id="cfgRelayKey" placeholder="DASHBOARD_API_KEY (Relay)" />
+        <div class="hint">Must match DASHBOARD_API_KEY configured on Relay.</div>
+      </div>
+      <div>
+        <label for="cfgGuildId">Guild ID (optional)</label>
+        <input id="cfgGuildId" placeholder="123456789012345678" />
+        <div class="hint">Optional; if empty, Relay will use its primary guild context.</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btnSettingsClear" class="btn btn-secondary">Clear</button>
+      <button id="btnSettingsSave" class="btn">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

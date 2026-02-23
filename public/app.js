@@ -1,4 +1,86 @@
-const cfg = window.WARROOM_CONFIG || {};
+// --- Settings modal (single-owner local config) ---
+const btnSettings = document.getElementById("btnSettings");
+const settingsBackdrop = document.getElementById("settingsBackdrop");
+const btnSettingsCloseTop = document.getElementById("btnSettingsCloseTop");
+const btnSettingsSave = document.getElementById("btnSettingsSave");
+const btnSettingsClear = document.getElementById("btnSettingsClear");
+
+const cfgBackendUrl = document.getElementById("cfgBackendUrl");
+const cfgBackendKey = document.getElementById("cfgBackendKey");
+const cfgRelayUrl = document.getElementById("cfgRelayUrl");
+const cfgRelayKey = document.getElementById("cfgRelayKey");
+const cfgGuildId = document.getElementById("cfgGuildId");
+
+function openSettings() {
+  cfg = loadWarroomConfig();
+  cfgBackendUrl.value = cfg.BACKEND_URL || "";
+  cfgBackendKey.value = cfg.BACKEND_API_KEY || "";
+  cfgRelayUrl.value = cfg.RELAY_URL || "";
+  cfgRelayKey.value = cfg.RELAY_API_KEY || "";
+  cfgGuildId.value = cfg.GUILD_ID || "";
+  settingsBackdrop.style.display = "flex";
+  settingsBackdrop.setAttribute("aria-hidden", "false");
+}
+
+function closeSettings() {
+  settingsBackdrop.style.display = "none";
+  settingsBackdrop.setAttribute("aria-hidden", "true");
+}
+
+function saveSettings() {
+  const next = {
+    BACKEND_URL: _normalizeUrl(cfgBackendUrl.value),
+    BACKEND_API_KEY: String(cfgBackendKey.value || "").trim(),
+    RELAY_URL: _normalizeUrl(cfgRelayUrl.value),
+    RELAY_API_KEY: String(cfgRelayKey.value || "").trim(),
+    GUILD_ID: String(cfgGuildId.value || "").trim()
+  };
+
+  localStorage.setItem("WARROOM_CONFIG", JSON.stringify(next));
+  closeSettings();
+  // reload to re-init all panels with the new cfg
+  location.reload();
+}
+
+function clearSettings() {
+  localStorage.removeItem("WARROOM_CONFIG");
+  closeSettings();
+  location.reload();
+}
+
+if (btnSettings) btnSettings.addEventListener("click", openSettings);
+if (btnSettingsCloseTop) btnSettingsCloseTop.addEventListener("click", closeSettings);
+if (btnSettingsSave) btnSettingsSave.addEventListener("click", saveSettings);
+if (btnSettingsClear) btnSettingsClear.addEventListener("click", clearSettings);
+if (settingsBackdrop) settingsBackdrop.addEventListener("click", (e) => {
+  if (e.target === settingsBackdrop) closeSettings();
+});
+
+function _normalizeUrl(u) {
+  if (!u) return "";
+  u = String(u).trim();
+  if (!u) return "";
+  // remove trailing slashes
+  u = u.replace(/\/+$/, "");
+  return u;
+}
+
+function loadWarroomConfig() {
+  const base = window.WARROOM_CONFIG || {};
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem("WARROOM_CONFIG") || "{}");
+  } catch (_) {
+    stored = {};
+  }
+  const merged = { ...base, ...stored };
+  merged.BACKEND_URL = _normalizeUrl(merged.BACKEND_URL);
+  merged.RELAY_URL = _normalizeUrl(merged.RELAY_URL);
+  return merged;
+}
+
+let cfg = loadWarroomConfig();
+
 
 const gwStatusEl = document.getElementById("gwStatus");
 const gwMetaEl = document.getElementById("gwMeta");
