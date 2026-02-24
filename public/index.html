@@ -5,153 +5,213 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Warroom — Discord Clone</title>
   <style>
-    :root{color-scheme:dark;}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:#0b1020;color:#e8eefc;}
-    .app{display:flex; height:100vh;}
-    .servers{width:70px;background:#0a0f1f;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:10px;}
-    .srv{width:46px;height:46px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer;}
-    .srv.active{outline:2px solid #2b5cff;}
-    .channels{width:320px;background:#0b1020;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;}
-    .top{padding:12px 12px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;gap:10px;}
-    .title{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .btn{border:0;border-radius:12px;padding:8px 12px;cursor:pointer;font-weight:700;background:#2b5cff;color:white;}
-    .btn.secondary{background:#1c243a;color:#e8eefc;border:1px solid #2a3555;}
-    .btn.small{padding:6px 10px;border-radius:10px;font-size:12px;}
-    .tree{padding:10px 8px;overflow:auto;}
-    .cat{margin-top:10px;}
-    .cat-h{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#aab6d8;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;padding:6px 6px;border-radius:10px;}
-    .cat-h:hover{background:rgba(255,255,255,.04);}
-    .cat-h .left{display:flex;align-items:center;gap:6px;min-width:0;}
-    .caret{width:10px;opacity:.8;}
-    .chan{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:10px;cursor:pointer;color:#d7e2ff;font-weight:650;}
-    .chan:hover{background:rgba(255,255,255,.05);}
-    .chan.active{background:rgba(43,92,255,.22);border:1px solid rgba(43,92,255,.35);}
-    .hash{opacity:.8;}
-    .main{flex:1;display:flex;flex-direction:column;}
-    .main-top{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;gap:12px;}
-    .main-body{display:grid;grid-template-columns:1fr 360px;gap:14px;padding:14px;overflow:auto;}
-    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;}
-    .muted{color:#aab6d8;font-size:13px;}
-    input,textarea,select{width:100%;box-sizing:border-box;background:#0e1730;border:1px solid #2a3555;color:#e8eefc;border-radius:12px;padding:10px 12px;outline:none;}
-    textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);font-size:12px;}
-    .status{font-weight:900;}
-    .status.up{color:#bff7d7;}
-    .status.down{color:#ffb3b3;}
-
-    /* modal */
-    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:50;}
-    .modal{width:min(760px,100%);background:#0b1020;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:16px;box-shadow:0 16px 40px rgba(0,0,0,.45);}
-    .modal h2{margin:6px 0 12px;}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    @media(max-width:980px){.main-body{grid-template-columns:1fr;}}
-    @media(max-width:720px){.channels{width:280px;}.grid2{grid-template-columns:1fr;}}
+    :root {
+      color-scheme: dark;
+      --bg: #0f111a;
+      --panel: #141826;
+      --panel2:#101427;
+      --border: rgba(255,255,255,0.08);
+      --muted: #aab6d8;
+      --text: #e8eefc;
+      --accent: #5865F2;
+      --danger: #ed4245;
+      --ok: #3ba55c;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: var(--bg); color: var(--text); }
+    .app { display:flex; height: 100vh; }
+    .servers {
+      width: 72px; background: #0b0d14; border-right: 1px solid var(--border);
+      display:flex; flex-direction: column; align-items:center; padding: 12px 0; gap: 10px;
+    }
+    .sv {
+      width: 48px; height: 48px; border-radius: 16px; display:flex; align-items:center; justify-content:center;
+      background: #1c2237; border:1px solid rgba(255,255,255,0.06); cursor:pointer; user-select:none;
+      transition: border-radius .12s ease, background .12s ease;
+      font-weight:800;
+    }
+    .sv:hover { border-radius: 14px; background:#222a45; }
+    .sv.active { border-radius: 14px; background: var(--accent); }
+    .sidebar {
+      width: 300px; background: #0e1220; border-right: 1px solid var(--border);
+      display:flex; flex-direction: column;
+    }
+    .sb-top {
+      padding: 12px 12px; border-bottom: 1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between; gap: 8px;
+    }
+    .guildname { font-weight:800; }
+    .iconbtn {
+      border:0; background:#1c2237; color: var(--text);
+      border:1px solid rgba(255,255,255,0.08);
+      padding: 8px 10px; border-radius: 12px; cursor:pointer; font-weight:700;
+    }
+    .channels { padding: 10px 8px 14px; overflow:auto; }
+    .cat { margin-top: 10px; }
+    .cat-head {
+      display:flex; align-items:center; justify-content:space-between;
+      color: var(--muted); font-size: 12px; letter-spacing: .6px;
+      padding: 6px 8px; text-transform: uppercase; font-weight:800; cursor:pointer;
+    }
+    .cat-head:hover { background: rgba(255,255,255,0.04); border-radius: 10px; }
+    .ch {
+      display:flex; align-items:center; gap: 8px;
+      padding: 8px 10px; border-radius: 10px; cursor:pointer;
+      color: #d7def7;
+    }
+    .ch:hover { background: rgba(255,255,255,0.04); }
+    .ch.active { background: rgba(88,101,242,0.20); }
+    .hash { opacity: .7; font-weight: 900; }
+    .main { flex:1; display:flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      height: 56px; background: var(--panel2); border-bottom: 1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between; padding: 0 12px; gap: 10px;
+    }
+    .crumb { display:flex; align-items:center; gap: 8px; min-width:0; }
+    .crumb .title { font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .statusrow { display:flex; align-items:center; gap: 10px; }
+    .pill {
+      display:flex; align-items:center; gap: 6px; padding: 6px 10px; border-radius: 999px;
+      background: rgba(255,255,255,0.04); border:1px solid var(--border); font-weight:800; font-size:12px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--danger); }
+    .dot.ok { background: var(--ok); }
+    .content { flex:1; overflow:auto; padding: 14px; display:grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
+    @media (max-width: 980px) { .content { grid-template-columns: 1fr; } .sidebar { width: 280px; } }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 14px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 15px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    input, select, textarea {
+      width:100%; background:#0e1730; border:1px solid rgba(255,255,255,0.12); color: var(--text);
+      border-radius: 12px; padding: 10px 12px; outline:none;
+    }
+    textarea { min-height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+    .btn {
+      border:0; cursor:pointer; font-weight:800;
+      background: var(--accent); color:white; padding: 10px 12px; border-radius: 12px;
+    }
+    .btn.secondary { background: #1c2237; border:1px solid rgba(255,255,255,0.12); }
+    .btn.danger { background: var(--danger); }
+    .row { display:flex; gap: 10px; flex-wrap:wrap; }
+    .row > * { flex: 1; min-width: 180px; }
+    .actions { display:flex; gap: 8px; flex-wrap:wrap; margin-top: 10px; }
+    .log {
+      background: #0b0d14; border:1px solid rgba(255,255,255,0.10); border-radius: 12px;
+      padding: 10px; min-height: 110px; white-space: pre-wrap; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+    }
+    /* Settings modal */
+    .backdrop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,0.55); padding: 16px; z-index: 50; }
+    .modal { width: min(760px, 100%); background: #0f111a; border:1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 14px; }
+    .modal-top { display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; }
+    .modal h3 { margin: 4px 0 6px; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .msg { margin-top: 10px; font-size: 13px; }
+    .msg.err { color: #ffb3b3; }
+    .msg.ok { color: #bff7d7; }
   </style>
 </head>
 <body>
   <div class="app">
-    <aside class="servers">
-      <div class="srv active" id="srvBtn" title="Guild">DW</div>
-      <button class="btn secondary small" id="btnSettings" type="button">⚙️</button>
-      <button class="btn secondary small" id="btnReload" type="button">⟳</button>
-    </aside>
+    <div class="servers">
+      <div class="sv active" id="svGuild">DW</div>
+    </div>
 
-    <aside class="channels">
-      <div class="top">
-        <div class="title" id="guildName">Guild</div>
-        <button class="btn small" id="btnCreate" type="button">＋</button>
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="guildname" id="guildName">Guild</div>
+        <button class="iconbtn" id="btnOpenSettings">Settings</button>
       </div>
-      <div class="tree" id="tree"></div>
+      <div class="channels" id="channelsPane"></div>
     </aside>
 
     <main class="main">
-      <div class="main-top">
-        <div>
-          <div style="font-weight:900;" id="selTitle">Select a channel</div>
-          <div class="muted" id="selMeta">—</div>
+      <div class="topbar">
+        <div class="crumb">
+          <div class="hash">#</div>
+          <div class="title" id="selectedTitle">Select a channel</div>
         </div>
-        <div class="row">
-          <span class="pill">Gateway: <span id="gwStatus" class="status down">DOWN</span></span>
-          <span class="pill">Relay: <span id="rlStatus" class="status down">DOWN</span></span>
+        <div class="statusrow">
+          <div class="pill"><span class="dot" id="gwDot"></span> Gateway: <span id="gwStatus">DOWN</span></div>
+          <div class="pill"><span class="dot" id="rlDot"></span> Relay: <span id="rlStatus">DOWN</span></div>
+          <button class="iconbtn" id="btnReload">Reload</button>
         </div>
       </div>
 
-      <div class="main-body">
+      <div class="content">
         <section class="card">
-          <div style="font-weight:900;margin-bottom:8px;">Discord — Live Clone</div>
-          <div class="muted">Estructura live desde Relay. Edita canales/categorías/roles con permisos de bot.</div>
-          <div style="height:12px;"></div>
+          <h2>Discord — Live Clone</h2>
+          <div class="muted">Estructura live desde Relay. Gestiona canales/categorías/roles con permisos del bot.</div>
+          <div class="actions">
+            <button class="btn secondary" id="btnRename">Rename</button>
+            <button class="btn secondary" id="btnMove">Move</button>
+            <button class="btn danger" id="btnDelete">Delete</button>
+          </div>
+          <div style="height:10px"></div>
+          <div class="log" id="actionLog">—</div>
 
-          <div class="row" style="justify-content:space-between;">
-            <div class="muted">Selected item actions</div>
-            <div class="row">
-              <button class="btn secondary small" id="btnRename" type="button">Rename</button>
-              <button class="btn secondary small" id="btnMove" type="button">Move</button>
-              <button class="btn secondary small" id="btnDelete" type="button">Delete</button>
+          <div style="height:16px"></div>
+          <h2>Command Console</h2>
+          <div class="muted">Ejecuta comandos del bot (slash parity) via Relay.</div>
+          <div style="height:10px"></div>
+          <div class="row">
+            <div>
+              <div class="muted">Command</div>
+              <input id="cmdName" value="create_group" />
             </div>
           </div>
-
-          <div style="height:10px;"></div>
-          <div class="muted">Action result</div>
-          <textarea id="actionOut" readonly></textarea>
-
-          <div style="height:14px;"></div>
-          <div style="font-weight:900;margin-bottom:8px;">Command Console</div>
-          <div class="muted">Ejecuta comandos del bot (slash parity) via Relay.</div>
-          <div style="height:10px;"></div>
-          <div class="muted">Command</div>
-          <input id="cmdName" value="create_group" />
-          <div style="height:10px;"></div>
+          <div style="height:10px"></div>
           <div class="muted">Options (JSON object)</div>
-          <textarea id="cmdOptions">{\n  "name": "hmb"\n}</textarea>
-          <div style="height:10px;"></div>
-          <button class="btn" id="btnRun" type="button">Run</button>
-          <div style="height:10px;"></div>
-          <div class="muted">Result</div>
-          <textarea id="cmdResult" readonly></textarea>
+          <textarea id="cmdOptions">{"name":"hmb"}</textarea>
+          <div class="actions">
+            <button class="btn" id="btnRunCmd">Run</button>
+          </div>
+          <div style="height:10px"></div>
+          <div class="log" id="cmdLog"></div>
         </section>
 
         <aside class="card">
-          <div style="font-weight:900;margin-bottom:8px;">Create</div>
+          <h2>Create</h2>
           <div class="muted">Crea categorías/canales/roles.</div>
-          <div style="height:10px;"></div>
-
+          <div style="height:10px"></div>
           <div class="muted">Type</div>
           <select id="createType">
             <option value="category">Category</option>
-            <option value="channel">Text Channel</option>
+            <option value="text">Text channel</option>
+            <option value="voice">Voice channel</option>
             <option value="role">Role</option>
           </select>
-
-          <div style="height:10px;"></div>
+          <div style="height:10px"></div>
           <div class="muted">Name</div>
-          <input id="createName" placeholder="name" />
-
-          <div style="height:10px;"></div>
+          <input id="createName" placeholder="new-name" />
+          <div style="height:10px"></div>
           <div class="muted">Parent Category (for channels)</div>
           <select id="createParent"></select>
+          <div class="actions">
+            <button class="btn" id="btnCreate">Create</button>
+          </div>
 
-          <div style="height:10px;"></div>
-          <button class="btn" id="btnCreateDo" type="button">Create</button>
-
-          <div style="height:16px;"></div>
-          <div style="font-weight:900;margin-bottom:8px;">Debug</div>
+          <div style="height:16px"></div>
+          <h2>Debug</h2>
           <textarea id="debugBox" readonly></textarea>
         </aside>
       </div>
     </main>
   </div>
 
-  <div class="backdrop" id="settingsBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-      <div class="row" style="justify-content:space-between;">
-        <h2 id="settingsTitle" style="margin:0;">Settings</h2>
-        <button class="btn secondary" id="btnCloseSettings" type="button">Close</button>
+  <div class="backdrop" id="settingsBackdrop">
+    <div class="modal">
+      <div class="modal-top">
+        <div>
+          <h3>Settings</h3>
+          <div class="hint">Se guarda en localStorage en este dispositivo.</div>
+        </div>
+        <button class="iconbtn" id="btnCloseSettings">Close</button>
       </div>
-      <div class="muted" style="margin-top:6px;">Se guarda en localStorage en este dispositivo.</div>
-      <div style="height:12px;"></div>
-      <div class="grid2">
+
+      <div style="height:10px"></div>
+      <div class="row">
         <div>
           <div class="muted">Gateway URL</div>
           <input id="inpBackendUrl" placeholder="https://gateway-xxxxx.onrender.com" />
@@ -160,6 +220,9 @@
           <div class="muted">Gateway API Key</div>
           <input id="inpBackendKey" placeholder="INTERNAL_API_KEY" />
         </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="row">
         <div>
           <div class="muted">Relay URL</div>
           <input id="inpRelayUrl" placeholder="https://relay-xxxxx.onrender.com" />
@@ -168,20 +231,24 @@
           <div class="muted">Relay API Key</div>
           <input id="inpRelayKey" placeholder="DASHBOARD_API_KEY" />
         </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="row">
         <div>
           <div class="muted">Guild ID (optional)</div>
           <input id="inpGuildId" placeholder="123456789012345678" />
         </div>
       </div>
-      <div id="settingsMsg" class="muted" style="margin-top:10px;"></div>
-      <div class="row" style="justify-content:flex-end;margin-top:12px;">
-        <button class="btn secondary" id="btnClearConfig" type="button">Clear</button>
-        <button class="btn" id="btnSaveConfig" type="button">Save</button>
+
+      <div class="actions">
+        <button class="btn secondary" id="btnClearCfg">Clear</button>
+        <button class="btn" id="btnSaveCfg">Save</button>
       </div>
+      <div class="msg err" id="settingsMsg" style="display:none;"></div>
     </div>
   </div>
 
-  <script src="./config.js?v=1771879101"></script>
-  <script src="./app.js?v=1771879101"></script>
+  <script src="./config.js?v=1771880908"></script>
+  <script src="./app.js?v=1771880908"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Default config (can be overridden by localStorage.WARROOM_CONFIG)
+// Warroom config defaults (overridden by localStorage.WARROOM_CONFIG)
 window.WARROOM_CONFIG = window.WARROOM_CONFIG || {
   BACKEND_URL: "",
   BACKEND_API_KEY: "",

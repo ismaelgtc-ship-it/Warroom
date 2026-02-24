@@ -1,8 +1,18 @@
-(function () {
-  const LS_KEY = "WARROOM_CONFIG";
 
+(() => {
+  const LS_KEY = "WARROOM_CONFIG";
   const $ = (id) => document.getElementById(id);
-  const safeJsonParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
+
+  const state = {
+    cfg: null,
+    guild: null,
+    categories: [],
+    channels: [],
+    selected: null, // {kind:'channel'|'category', id}
+    collapsedCats: new Set()
+  };
+
+  const safeJson = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
   function normalizeUrl(u){
     u = (u || "").trim();
@@ -13,15 +23,11 @@
     return u;
   }
 
-  function loadConfig(){
+  function loadCfg(){
     const base = (window.WARROOM_CONFIG && typeof window.WARROOM_CONFIG === "object") ? window.WARROOM_CONFIG : {};
     const raw = localStorage.getItem(LS_KEY);
-    const ls = raw ? safeJsonParse(raw) : null;
-    const cfg = Object.assign(
-      { BACKEND_URL:"", BACKEND_API_KEY:"", RELAY_URL:"", RELAY_API_KEY:"", GUILD_ID:"" },
-      base,
-      (ls && typeof ls === "object") ? ls : {}
-    );
+    const ls = raw ? safeJson(raw) : null;
+    const cfg = Object.assign({ BACKEND_URL:"", BACKEND_API_KEY:"", RELAY_URL:"", RELAY_API_KEY:"", GUILD_ID:"" }, base, (ls && typeof ls === "object") ? ls : {});
     cfg.BACKEND_URL = normalizeUrl(cfg.BACKEND_URL);
     cfg.RELAY_URL = normalizeUrl(cfg.RELAY_URL);
     cfg.BACKEND_API_KEY = (cfg.BACKEND_API_KEY || "").trim();
@@ -30,319 +36,265 @@
     return cfg;
   }
 
-  function saveConfig(cfg){
-    localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+  function saveCfg(cfg){ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
+
+  function setStatus(which, up, detail){
+    const dot = which === "gateway" ? $("gwDot") : $("rlDot");
+    const label = which === "gateway" ? $("gwStatus") : $("rlStatus");
+    dot.classList.toggle("ok", !!up);
+    label.textContent = up ? "UP" : "DOWN";
+    if (!up && detail) label.textContent = "DOWN";
   }
 
-  function setPill(id, up){
-    const el = $(id);
-    el.textContent = up ? "UP" : "DOWN";
-    el.classList.toggle("up", !!up);
-    el.classList.toggle("down", !up);
-  }
-
-  async function pingGateway(cfg){
-    if (!cfg.BACKEND_URL) return setPill("gwStatus", false);
+  async function pingGateway(){
+    const cfg = state.cfg;
+    if (!cfg.BACKEND_URL) return setStatus("gateway", false);
     try{
       const res = await fetch(cfg.BACKEND_URL + "/api/core/status", { headers: cfg.BACKEND_API_KEY ? { "X-API-Key": cfg.BACKEND_API_KEY } : {} });
-      setPill("gwStatus", res.ok);
-    }catch{ setPill("gwStatus", false); }
+      setStatus("gateway", res.ok);
+    }catch{ setStatus("gateway", false); }
   }
 
-  async function pingRelay(cfg){
-    if (!cfg.RELAY_URL) return setPill("rlStatus", false);
+  async function pingRelay(){
+    const cfg = state.cfg;
+    if (!cfg.RELAY_URL) return setStatus("relay", false);
     try{
       const res = await fetch(cfg.RELAY_URL + "/health", { headers: cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {} });
-      setPill("rlStatus", res.ok);
-    }catch{ setPill("rlStatus", false); }
+      setStatus("relay", res.ok);
+    }catch{ setStatus("relay", false); }
   }
 
-  function openSettings(cfg){
+  async function relayGet(path){
+    const cfg = state.cfg;
+    const url = cfg.RELAY_URL + path;
+    const res = await fetch(url, { headers: Object.assign({}, cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {}) });
+    const txt = await res.text();
+    let data; try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function relayPost(path, body){
+    const cfg = state.cfg;
+    const url = cfg.RELAY_URL + path;
+    const res = await fetch(url, {
+      method:"POST",
+      headers: Object.assign({ "Content-Type":"application/json" }, cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {}),
+      body: JSON.stringify(body || {})
+    });
+    const txt = await res.text();
+    let data; try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function renderDebug(){
+    const dbg = {
+      origin: location.origin,
+      cfg: state.cfg,
+      guild: state.guild ? { id: state.guild.id, name: state.guild.name } : null,
+      selected: state.selected
+    };
+    $("debugBox").value = JSON.stringify(dbg, null, 2);
+  }
+
+  function iconForChannel(ch){
+    if (ch.type === 2) return "🔊";
+    return "#";
+  }
+
+  function selectItem(kind, id){
+    state.selected = { kind, id };
+    const title = kind === "category" ? (state.categories.find(c=>c.id===id)?.name || "Category") : (state.channels.find(c=>c.id===id)?.name || "Channel");
+    $("selectedTitle").textContent = title;
+    renderTree();
+    renderDebug();
+  }
+
+  function toggleCat(id){
+    if (state.collapsedCats.has(id)) state.collapsedCats.delete(id); else state.collapsedCats.add(id);
+    renderTree();
+  }
+
+  function renderTree(){
+    const pane = $("channelsPane");
+    pane.innerHTML = "";
+    const cats = [...state.categories].sort((a,b)=>a.position-b.position);
+    const chans = [...state.channels].sort((a,b)=>a.position-b.position);
+
+    // Build parent map
+    const byParent = new Map();
+    for (const ch of chans){
+      const key = ch.parentId || "none";
+      if (!byParent.has(key)) byParent.set(key, []);
+      byParent.get(key).push(ch);
+    }
+
+    // Uncategorized first
+    const unc = byParent.get("none") || [];
+    if (unc.length){
+      const head = document.createElement("div");
+      head.className = "cat-head";
+      head.textContent = "TEXT CHANNELS";
+      pane.appendChild(head);
+      for (const ch of unc){
+        const row = document.createElement("div");
+        row.className = "ch" + (state.selected?.kind==="channel" && state.selected?.id===ch.id ? " active":"");
+        row.innerHTML = `<span class="hash">${iconForChannel(ch)}</span><span>${escapeHtml(ch.name)}</span>`;
+        row.onclick = () => selectItem("channel", ch.id);
+        pane.appendChild(row);
+      }
+    }
+
+    for (const cat of cats){
+      const catWrap = document.createElement("div");
+      catWrap.className = "cat";
+      const head = document.createElement("div");
+      head.className = "cat-head";
+      head.innerHTML = `<span>${escapeHtml(cat.name)}</span><span>${state.collapsedCats.has(cat.id) ? "▸":"▾"}</span>`;
+      head.onclick = () => toggleCat(cat.id);
+      head.ondblclick = () => selectItem("category", cat.id);
+      catWrap.appendChild(head);
+
+      if (!state.collapsedCats.has(cat.id)){
+        const list = byParent.get(cat.id) || [];
+        for (const ch of list){
+          const row = document.createElement("div");
+          row.className = "ch" + (state.selected?.kind==="channel" && state.selected?.id===ch.id ? " active":"");
+          row.innerHTML = `<span class="hash">${iconForChannel(ch)}</span><span>${escapeHtml(ch.name)}</span>`;
+          row.onclick = () => selectItem("channel", ch.id);
+          catWrap.appendChild(row);
+        }
+      }
+      pane.appendChild(catWrap);
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]));
+  }
+
+  async function loadGuild(){
+    const cfg = state.cfg;
+    if (!cfg.RELAY_URL){
+      $("actionLog").textContent = "Missing Relay URL. Open Settings.";
+      openSettings();
+      return;
+    }
+    $("actionLog").textContent = "Loading guild state…";
+    const qs = cfg.GUILD_ID ? `?guildId=${encodeURIComponent(cfg.GUILD_ID)}` : "";
+    const out = await relayGet("/api/dashboard/guild/state"+qs);
+    if (!out.ok){
+      $("actionLog").textContent = `Failed to load guild state: ${out.status} ${JSON.stringify(out.data)}`;
+      return;
+    }
+    state.guild = out.data.guild;
+    state.categories = out.data.categories || [];
+    state.channels = out.data.channels || [];
+    $("guildName").textContent = state.guild?.name || "Guild";
+
+    // Populate parent select
+    const sel = $("createParent");
+    sel.innerHTML = "";
+    const optNone = document.createElement("option");
+    optNone.value = "";
+    optNone.textContent = "(none)";
+    sel.appendChild(optNone);
+    for (const c of state.categories.sort((a,b)=>a.position-b.position)){
+      const o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = c.name;
+      sel.appendChild(o);
+    }
+
+    renderTree();
+    renderDebug();
+    $("actionLog").textContent = "OK";
+  }
+
+  async function doRename(){
+    if (!state.selected){ $("actionLog").textContent="Select an item first"; return; }
+    const name = prompt("New name:");
+    if (!name) return;
+    if (state.selected.kind === "channel" || state.selected.kind === "category"){
+      const channelId = state.selected.id;
+      const out = await relayPost("/api/dashboard/channel/rename", { channelId, name });
+      $("actionLog").textContent = JSON.stringify(out, null, 2);
+      await loadGuild();
+    }
+  }
+
+  async function doMove(){
+    if (!state.selected || state.selected.kind !== "channel"){ $("actionLog").textContent="Select a channel first"; return; }
+    const parentId = prompt("Parent category ID (empty for none):", "");
+    const out = await relayPost("/api/dashboard/channel/move", { channelId: state.selected.id, parentId: parentId || null });
+    $("actionLog").textContent = JSON.stringify(out, null, 2);
+    await loadGuild();
+  }
+
+  async function doDelete(){
+    if (!state.selected){ $("actionLog").textContent="Select an item first"; return; }
+    if (!confirm("Delete selected item?")) return;
+    const out = await relayPost("/api/dashboard/channel/delete", { channelId: state.selected.id });
+    $("actionLog").textContent = JSON.stringify(out, null, 2);
+    state.selected = null;
+    $("selectedTitle").textContent = "Select a channel";
+    await loadGuild();
+  }
+
+  async function doCreate(){
+    const type = $("createType").value;
+    const name = ($("createName").value || "").trim();
+    const parentId = $("createParent").value || null;
+    if (!name){ $("actionLog").textContent="Missing name"; return; }
+    const guildId = state.cfg.GUILD_ID || undefined;
+
+    let out;
+    if (type === "category"){
+      out = await relayPost("/api/dashboard/category/create", { guildId, name });
+    } else if (type === "role"){
+      out = await relayPost("/api/dashboard/role/create", { guildId, name });
+    } else {
+      out = await relayPost("/api/dashboard/channel/create", { guildId, name, parentId, type });
+    }
+    $("actionLog").textContent = JSON.stringify(out, null, 2);
+    $("createName").value = "";
+    await loadGuild();
+  }
+
+  async function runCmd(){
+    const name = ($("cmdName").value || "").trim();
+    const obj = safeJson($("cmdOptions").value || "");
+    if (!name){ $("cmdLog").textContent="Missing command"; return; }
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)){ $("cmdLog").textContent="Options must be a JSON object"; return; }
+    const out = await relayPost("/api/dashboard/commands/execute", { name, options: obj, guildId: state.cfg.GUILD_ID || undefined });
+    $("cmdLog").textContent = JSON.stringify(out, null, 2);
+  }
+
+  // Settings modal
+  function openSettings(){
+    const cfg = state.cfg;
     $("inpBackendUrl").value = cfg.BACKEND_URL || "";
     $("inpBackendKey").value = cfg.BACKEND_API_KEY || "";
     $("inpRelayUrl").value = cfg.RELAY_URL || "";
     $("inpRelayKey").value = cfg.RELAY_API_KEY || "";
     $("inpGuildId").value = cfg.GUILD_ID || "";
-    $("settingsMsg").textContent = "";
-    $("settingsBackdrop").style.display = "flex";
-    $("settingsBackdrop").setAttribute("aria-hidden","false");
+    $("settingsMsg").style.display="none";
+    $("settingsBackdrop").style.display="flex";
   }
-  function closeSettings(){
-    $("settingsBackdrop").style.display = "none";
-    $("settingsBackdrop").setAttribute("aria-hidden","true");
-  }
+  function closeSettings(){ $("settingsBackdrop").style.display="none"; }
 
-  // --- Discord state ---
-  let STATE = null;
-  let SELECTED = { kind: null, id: null };
-
-  function debugWrite(cfg){
-    const dbg = {
-      origin: location.origin,
-      cfg: {
-        BACKEND_URL: cfg.BACKEND_URL,
-        RELAY_URL: cfg.RELAY_URL,
-        GUILD_ID: cfg.GUILD_ID,
-        BACKEND_API_KEY: cfg.BACKEND_API_KEY ? "***" : "",
-        RELAY_API_KEY: cfg.RELAY_API_KEY ? "***" : ""
-      },
-      selected: SELECTED,
-      snapshot: STATE ? { channels: STATE.channels?.length || 0, roles: STATE.roles?.length || 0, members: STATE.members?.length || 0 } : null
-    };
-    $("debugBox").value = JSON.stringify(dbg, null, 2);
+  function showSettingsMsg(text, ok){
+    const el = $("settingsMsg");
+    el.style.display="block";
+    el.className = "msg " + (ok ? "ok":"err");
+    el.textContent = text;
   }
 
-  async function fetchGuildState(cfg){
-    if (!cfg.RELAY_URL) throw new Error("Missing RELAY_URL");
-    const url = new URL(cfg.RELAY_URL + "/api/dashboard/guild/state");
-    if (cfg.GUILD_ID) url.searchParams.set("guildId", cfg.GUILD_ID);
-    const res = await fetch(url.toString(), { headers: cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {} });
-    const txt = await res.text();
-    let data; try{ data = JSON.parse(txt);}catch{ data = { raw: txt }; }
-    if (!res.ok) throw new Error("Relay HTTP " + res.status + ": " + (data?.error || txt));
-    return data;
-  }
+  function bind(){
+    $("btnOpenSettings").onclick = openSettings;
+    $("btnCloseSettings").onclick = closeSettings;
+    $("settingsBackdrop").onclick = (e) => { if (e.target === $("settingsBackdrop")) closeSettings(); };
 
-  function isCategory(c){
-    // Discord.js ChannelType.GuildCategory = 4
-    return c.type === 4;
-  }
-
-  function channelIcon(c){
-    if (isCategory(c)) return "";
-    // best-effort
-    return "#";
-  }
-
-  function buildTree(){
-    const tree = $("tree");
-    tree.innerHTML = "";
-
-    const channels = (STATE?.channels || []).slice();
-    const categories = channels.filter(isCategory).sort((a,b)=>a.position-b.position);
-    const byParent = new Map();
-    for (const ch of channels){
-      if (isCategory(ch)) continue;
-      const p = ch.parentId || "__root__";
-      if (!byParent.has(p)) byParent.set(p, []);
-      byParent.get(p).push(ch);
-    }
-    for (const [k, arr] of byParent) arr.sort((a,b)=>a.position-b.position);
-
-    function renderChannel(ch){
-      const el = document.createElement("div");
-      el.className = "chan" + (SELECTED.kind === "channel" && SELECTED.id === ch.id ? " active" : "");
-      el.dataset.kind = "channel";
-      el.dataset.id = ch.id;
-      el.innerHTML = `<span class="hash">${channelIcon(ch)}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(ch.name)}</span>`;
-      el.addEventListener("click", () => selectItem("channel", ch.id));
-      return el;
-    }
-
-    function renderCategory(cat){
-      const wrap = document.createElement("div");
-      wrap.className = "cat";
-      const h = document.createElement("div");
-      h.className = "cat-h";
-      h.dataset.kind = "category";
-      h.dataset.id = cat.id;
-      const left = document.createElement("div");
-      left.className = "left";
-      left.innerHTML = `<span class="caret">▾</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(cat.name)}</span>`;
-      h.appendChild(left);
-      const actions = document.createElement("div");
-      actions.style.display = "flex";
-      actions.style.gap = "6px";
-      const bSel = document.createElement("button");
-      bSel.className = "btn secondary small";
-      bSel.textContent = "Select";
-      bSel.addEventListener("click", (e)=>{ e.stopPropagation(); selectItem("category", cat.id); });
-      actions.appendChild(bSel);
-      h.appendChild(actions);
-      wrap.appendChild(h);
-
-      const list = document.createElement("div");
-      list.style.marginTop = "6px";
-      (byParent.get(cat.id) || []).forEach(ch => list.appendChild(renderChannel(ch)));
-      wrap.appendChild(list);
-
-      let open = true;
-      h.addEventListener("click", ()=>{
-        open = !open;
-        list.style.display = open ? "block" : "none";
-        left.querySelector(".caret").textContent = open ? "▾" : "▸";
-      });
-
-      return wrap;
-    }
-
-    // Root channels
-    const root = byParent.get("__root__") || [];
-    if (root.length){
-      const rootWrap = document.createElement("div");
-      rootWrap.className = "cat";
-      const h = document.createElement("div");
-      h.className = "cat-h";
-      h.innerHTML = `<div class="left"><span class="caret">▾</span><span>TEXT CHANNELS</span></div>`;
-      rootWrap.appendChild(h);
-      const list = document.createElement("div");
-      list.style.marginTop = "6px";
-      root.forEach(ch => list.appendChild(renderChannel(ch)));
-      rootWrap.appendChild(list);
-      let open = true;
-      h.addEventListener("click", ()=>{
-        open = !open;
-        list.style.display = open ? "block" : "none";
-        h.querySelector(".caret").textContent = open ? "▾" : "▸";
-      });
-      tree.appendChild(rootWrap);
-    }
-
-    categories.forEach(cat => tree.appendChild(renderCategory(cat)));
-
-    // Parent selector
-    const sel = $("createParent");
-    sel.innerHTML = "";
-    const optRoot = document.createElement("option");
-    optRoot.value = "";
-    optRoot.textContent = "(no parent)";
-    sel.appendChild(optRoot);
-    categories.forEach(cat => {
-      const o = document.createElement("option");
-      o.value = cat.id;
-      o.textContent = cat.name;
-      sel.appendChild(o);
-    });
-  }
-
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, (c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-  }
-
-  function selectItem(kind, id){
-    SELECTED = { kind, id };
-    const ch = (STATE?.channels || []).find(x=>x.id===id);
-    const title = kind === "channel" ? `#${ch?.name || id}` : (kind === "category" ? (ch?.name || "Category") : "—");
-    $("selTitle").textContent = title;
-    $("selMeta").textContent = `${kind} • ${id}`;
-    buildTree();
-    debugWrite(loadConfig());
-  }
-
-  async function callRelay(cfg, path, body){
-    const res = await fetch(cfg.RELAY_URL + path, {
-      method: "POST",
-      headers: Object.assign({ "Content-Type":"application/json" }, cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {}),
-      body: JSON.stringify(body || {})
-    });
-    const txt = await res.text();
-    let data; try{ data = JSON.parse(txt);}catch{ data = { raw: txt }; }
-    return { ok: res.ok, status: res.status, data };
-  }
-
-  async function doRename(cfg){
-    if (!SELECTED.id) return;
-    const current = (STATE?.channels || []).find(x=>x.id===SELECTED.id);
-    const name = prompt("New name", current?.name || "");
-    if (!name) return;
-    if (SELECTED.kind === "channel"){
-      const r = await callRelay(cfg, "/api/dashboard/channel/rename", { channelId: SELECTED.id, name });
-      $("actionOut").value = JSON.stringify(r, null, 2);
-    } else if (SELECTED.kind === "category"){
-      const r = await callRelay(cfg, "/api/dashboard/channel/rename", { channelId: SELECTED.id, name });
-      $("actionOut").value = JSON.stringify(r, null, 2);
-    }
-    await reloadAll(cfg);
-  }
-
-  async function doMove(cfg){
-    if (!SELECTED.id) return;
-    if (SELECTED.kind !== "channel") return;
-    const parentId = prompt("Move to categoryId (empty for root)", "");
-    const r = await callRelay(cfg, "/api/dashboard/channel/move", { channelId: SELECTED.id, parentId: parentId || null });
-    $("actionOut").value = JSON.stringify(r, null, 2);
-    await reloadAll(cfg);
-  }
-
-  async function doDelete(cfg){
-    if (!SELECTED.id) return;
-    const yes = confirm("Delete selected item? This cannot be undone.");
-    if (!yes) return;
-    if (SELECTED.kind === "channel" || SELECTED.kind === "category"){
-      const r = await callRelay(cfg, "/api/dashboard/channel/delete", { channelId: SELECTED.id });
-      $("actionOut").value = JSON.stringify(r, null, 2);
-      SELECTED = { kind: null, id: null };
-      $("selTitle").textContent = "Select a channel";
-      $("selMeta").textContent = "—";
-      await reloadAll(cfg);
-    }
-  }
-
-  async function doCreate(cfg){
-    const type = $("createType").value;
-    const name = ($("createName").value || "").trim();
-    if (!name) return;
-    let r;
-    if (type === "category"){
-      r = await callRelay(cfg, "/api/dashboard/category/create", { guildId: cfg.GUILD_ID || undefined, name });
-    } else if (type === "channel"){
-      const parentId = $("createParent").value || null;
-      r = await callRelay(cfg, "/api/dashboard/channel/create", { guildId: cfg.GUILD_ID || undefined, name, parentId });
-    } else if (type === "role"){
-      r = await callRelay(cfg, "/api/dashboard/role/create", { guildId: cfg.GUILD_ID || undefined, name });
-    }
-    $("actionOut").value = JSON.stringify(r, null, 2);
-    $("createName").value = "";
-    await reloadAll(cfg);
-  }
-
-  async function runCommand(cfg){
-    const out = $("cmdResult");
-    out.value = "";
-    if (!cfg.RELAY_URL) { out.value = "Config error: set RELAY_URL"; return; }
-    const name = ($("cmdName").value || "").trim();
-    if (!name) { out.value = "Missing command"; return; }
-
-    const raw = $("cmdOptions").value || "{}";
-    const parsed = safeJsonParse(raw);
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) { out.value = "Options must be a JSON object"; return; }
-
-    try{
-      const res = await fetch(cfg.RELAY_URL + "/api/dashboard/commands/execute", {
-        method: "POST",
-        headers: Object.assign({ "Content-Type":"application/json" }, cfg.RELAY_API_KEY ? { "X-API-Key": cfg.RELAY_API_KEY } : {}),
-        body: JSON.stringify({ name, options: parsed, guildId: cfg.GUILD_ID || undefined })
-      });
-      const text = await res.text();
-      let payload; try{ payload = JSON.parse(text);}catch{ payload = { raw: text }; }
-      out.value = JSON.stringify({ status: res.status, payload }, null, 2);
-    }catch(e){
-      out.value = String(e && e.message ? e.message : e);
-    }
-  }
-
-  async function reloadAll(cfg){
-    await Promise.all([pingGateway(cfg), pingRelay(cfg)]);
-    try{
-      const data = await fetchGuildState(cfg);
-      STATE = data;
-      $("guildName").textContent = data.guild?.name || "Guild";
-      buildTree();
-    }catch(e){
-      $("actionOut").value = "Failed to load guild state: " + String(e?.message || e);
-    }
-    debugWrite(cfg);
-  }
-
-  document.addEventListener("DOMContentLoaded", async () => {
-    let cfg = loadConfig();
-
-    // Settings
-    $("btnSettings").addEventListener("click", ()=>openSettings(cfg));
-    $("btnCloseSettings").addEventListener("click", closeSettings);
-    $("settingsBackdrop").addEventListener("click", (e)=>{ if (e.target === $("settingsBackdrop")) closeSettings(); });
-
-    $("btnSaveConfig").addEventListener("click", ()=>{
+    $("btnSaveCfg").onclick = async () => {
       const next = {
         BACKEND_URL: normalizeUrl($("inpBackendUrl").value),
         BACKEND_API_KEY: ($("inpBackendKey").value || "").trim(),
@@ -350,40 +302,43 @@
         RELAY_API_KEY: ($("inpRelayKey").value || "").trim(),
         GUILD_ID: ($("inpGuildId").value || "").trim()
       };
-      if (!next.BACKEND_URL) { $("settingsMsg").textContent = "Invalid Gateway URL"; return; }
-      if (!next.RELAY_URL) { $("settingsMsg").textContent = "Invalid Relay URL"; return; }
-      saveConfig(next);
-      cfg = loadConfig();
+      if (!next.RELAY_URL) return showSettingsMsg("Relay URL invalid", false);
+      saveCfg(next);
+      state.cfg = loadCfg();
       closeSettings();
-      reloadAll(cfg);
-    });
+      renderDebug();
+      await boot();
+    };
 
-    $("btnClearConfig").addEventListener("click", ()=>{
+    $("btnClearCfg").onclick = async () => {
       localStorage.removeItem(LS_KEY);
-      cfg = loadConfig();
-      $("settingsMsg").textContent = "Cleared.";
-      openSettings(cfg);
-      debugWrite(cfg);
-    });
+      state.cfg = loadCfg();
+      renderDebug();
+      showSettingsMsg("Cleared. Fill URLs and Save.", true);
+    };
 
-    // Reload
-    $("btnReload").addEventListener("click", ()=>{ cfg = loadConfig(); reloadAll(cfg); });
+    $("btnReload").onclick = () => boot();
+    $("btnRename").onclick = () => doRename();
+    $("btnMove").onclick = () => doMove();
+    $("btnDelete").onclick = () => doDelete();
+    $("btnCreate").onclick = () => doCreate();
+    $("btnRunCmd").onclick = () => runCmd();
+  }
 
-    // Actions
-    $("btnRename").addEventListener("click", ()=>{ cfg = loadConfig(); doRename(cfg); });
-    $("btnMove").addEventListener("click", ()=>{ cfg = loadConfig(); doMove(cfg); });
-    $("btnDelete").addEventListener("click", ()=>{ cfg = loadConfig(); doDelete(cfg); });
+  async function boot(){
+    state.cfg = loadCfg();
+    renderDebug();
+    await pingGateway();
+    await pingRelay();
+    await loadGuild();
 
-    // Create quick button
-    $("btnCreate").addEventListener("click", ()=>{ document.querySelector("#createName").focus(); });
-    $("btnCreateDo").addEventListener("click", ()=>{ cfg = loadConfig(); doCreate(cfg); });
+    // auto-open settings if missing
+    if (!state.cfg.RELAY_URL) openSettings();
+  }
 
-    // Command
-    $("btnRun").addEventListener("click", ()=>{ cfg = loadConfig(); runCommand(cfg); });
-
-    // Auto-open settings if missing URLs
-    if (!cfg.BACKEND_URL || !cfg.RELAY_URL) openSettings(cfg);
-
-    await reloadAll(cfg);
+  document.addEventListener("DOMContentLoaded", async () => {
+    state.cfg = loadCfg();
+    bind();
+    await boot();
   });
 })();
